@@ -76,6 +76,7 @@ function App() {
 
   const handleSetupComplete = (data: UserSetupData) => {
     console.log('用户设置完成:', data);
+    // 修复：正确调用 addSeed，第二个参数为 treeType
     addSeed(`我的第一棵树: ${data.treeType}`, data.treeType);
     setUserSetup(data);
     localStorage.setItem('user-setup', JSON.stringify(data));
