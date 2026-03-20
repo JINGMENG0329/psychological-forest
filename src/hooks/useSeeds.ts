@@ -93,7 +93,7 @@ const getRandomNegativeThoughts = (): string[] => {
   return shuffled.slice(0, count);
 };
 
-const getNextHealthState = (current: HealthState, health: number): HealthState => {
+const getNextHealthState = (_current: HealthState, health: number): HealthState => {
   const states: HealthState[] = ['healthy', 'pests', 'thirsty', 'overcrowded'];
   if (Math.random() > (health / 100)) {
     const negativeStates = states.filter(s => s !== 'healthy');
@@ -233,7 +233,7 @@ export function useSeeds() {
 
   const performAction = (
     id: string,
-    growthIncrement: number,
+    _growthIncrement: number,
     action: SeedHistoryItem['action'],
     description: string,
     modifier?: (seed: Seed) => Seed
