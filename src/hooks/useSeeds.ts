@@ -30,7 +30,7 @@ const mapDbSeed = (dbSeed: any): Seed => {
   };
 };
 
-// 操作基础效果（与原版一致）
+// 操作基础效果
 const actionBaseEffects: Record<SeedHistoryItem['action'], { growthBase: number; healthRecovery: number }> = {
   water: { growthBase: 5, healthRecovery: 3 },
   fertilize: { growthBase: 8, healthRecovery: 1 },
@@ -40,7 +40,6 @@ const actionBaseEffects: Record<SeedHistoryItem['action'], { growthBase: number;
   loosen: { growthBase: 4, healthRecovery: 3 },
 };
 
-// 计算阶段（与原版一致）
 const getStageFromGrowth = (growth: number): GrowthStage => {
   if (growth < 20) return 0;
   if (growth < 40) return 1;
@@ -49,7 +48,6 @@ const getStageFromGrowth = (growth: number): GrowthStage => {
   return 4;
 };
 
-// 随机健康状态变化（基于健康值）
 const getNextHealthState = (current: HealthState, health: number): HealthState => {
   const states: HealthState[] = ['healthy', 'pests', 'thirsty', 'overcrowded'];
   if (Math.random() > (health / 100)) {
@@ -63,9 +61,12 @@ export function useSeeds(userId: string | null) {
   const [seeds, setSeeds] = useState<Seed[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 加载所有种子并附带留言
   const loadSeeds = async () => {
-    if (!userId) return;
+    if (!userId) {
+      // 未登录时直接结束加载，不请求数据
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const { data: seedsData, error } = await supabase
       .from('seeds')
@@ -78,7 +79,6 @@ export function useSeeds(userId: string | null) {
     }
 
     const mapped = seedsData.map(mapDbSeed);
-    // 为每个种子加载留言
     for (const seed of mapped) {
       const { data: msgs } = await supabase
         .from('messages')
@@ -91,7 +91,6 @@ export function useSeeds(userId: string | null) {
     setLoading(false);
   };
 
-  // 添加种子
   const addSeed = async (content: string, treeType?: TreeType) => {
     if (!userId) return;
     const now = Date.now();
@@ -120,7 +119,6 @@ export function useSeeds(userId: string | null) {
     }
   };
 
-  // 通用更新种子方法
   const updateSeed = async (id: string, updates: Partial<Seed>) => {
     if (!userId) return;
     const dbUpdates: any = {};
@@ -153,7 +151,6 @@ export function useSeeds(userId: string | null) {
     }
   };
 
-  // 执行照料动作（完整逻辑）
   const performAction = async (
     id: string,
     _growthIncrement: number,
@@ -187,7 +184,6 @@ export function useSeeds(userId: string | null) {
 
     if (currentSeed.dead) return;
 
-    // 检查过度照料
     const lastTimeField = `last${action.charAt(0).toUpperCase() + action.slice(1)}Time` as keyof Pick<Seed, 'lastWaterTime' | 'lastFertilizeTime' | 'lastSunTime' | 'lastPestTime' | 'lastTrimTime' | 'lastLoosenTime'>;
     const lastTime = currentSeed[lastTimeField];
     const isOverCared = lastTime && (now - (lastTime as number)) < 30 * 60 * 1000;
@@ -204,7 +200,6 @@ export function useSeeds(userId: string | null) {
       growthChange = Math.max(1, Math.floor(growthChange * (currentSeed.health / 100)));
     }
 
-    // 应用 modifier（如驱虫移除负面想法）
     if (modifier) {
       currentSeed = modifier(currentSeed);
     }
@@ -220,7 +215,6 @@ export function useSeeds(userId: string | null) {
       [action]: currentSeed.stats[action] + 1,
     };
 
-    // 成就系统（简单示例）
     let newAchievements = [...currentSeed.achievements];
     if (newGrowth === 100 && !newAchievements.some(a => a.id === 'growth_100')) {
       newAchievements.push({ id: 'growth_100', name: '茁壮成长', description: '一棵树成长到100%', icon: '🌳', unlockedAt: now });
@@ -237,7 +231,6 @@ export function useSeeds(userId: string | null) {
       [lastTimeField]: now,
     };
 
-    // 添加历史记录
     const historyItem: SeedHistoryItem = {
       id: `${now}-${Math.random()}`,
       action,
@@ -247,13 +240,12 @@ export function useSeeds(userId: string | null) {
     };
     updated.history = [historyItem, ...currentSeed.history];
 
-    // 随机健康状态变化
     const prob = Math.min(0.5, (100 - newHealth) / 200);
     if (Math.random() < prob) {
       const newHealthState = getNextHealthState(currentSeed.healthState, newHealth);
       updated.healthState = newHealthState;
       if (newHealthState === 'pests') {
-        updated.negativeThoughts = ['我做不到']; // 简单示例，可扩展
+        updated.negativeThoughts = ['我做不到'];
       } else {
         updated.negativeThoughts = [];
       }
@@ -263,7 +255,6 @@ export function useSeeds(userId: string | null) {
     await updateSeed(id, updated);
   };
 
-  // 添加留言
   const addMessage = async (id: string, nick: string, content: string) => {
     const message: Message = {
       nick: nick.trim() || '森林伙伴',
@@ -280,7 +271,6 @@ export function useSeeds(userId: string | null) {
     }
   };
 
-  // 驱虫
   const removeNegativeThought = async (id: string, thought: string) => {
     const seed = seeds.find(s => s.id === id);
     if (!seed) return;
