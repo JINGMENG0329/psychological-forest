@@ -1,134 +1,36 @@
 import { useEffect, useState } from 'react';
-import { Seed, HealthState, SeedHistoryItem, Message, Stats, Achievement, ALL_ACHIEVEMENTS, TreeType, GrowthStage } from '../types';
+import { supabase } from '../lib/supabase';
+import { Seed, SeedHistoryItem, Message, TreeType, HealthState, GrowthStage } from '../types';
 
-const STORAGE_KEY = 'psychologicalForest';
-
-const NEGATIVE_THOUGHTS = [
-  '我做不到',
-  '没人喜欢我',
-  '我总把事情搞砸',
-  '一切都没有意义',
-  '我不够好',
-  '别人都比我强',
-  '我永远无法改变',
-];
-
-const MOCK_CONTENTS = [
-  '工作压力好大',
-  '和朋友吵架了',
-  '总是失眠焦虑',
-  '对未来感到迷茫',
-  '感觉自己不够优秀',
-  '担心家人健康',
-];
-
-const TREE_TYPES: TreeType[] = ['oak', 'cherry', 'maple', 'pine', 'willow', 'blossom'];
-
-const getStageFromGrowth = (growth: number): GrowthStage => {
-  if (growth < 20) return 0;
-  if (growth < 40) return 1;
-  if (growth < 60) return 2;
-  if (growth < 80) return 3;
-  return 4;
+// 辅助函数：从数据库种子转换为前端 Seed 类型
+const mapDbSeed = (dbSeed: any): Seed => {
+  return {
+    id: dbSeed.id,
+    content: dbSeed.content,
+    treeType: dbSeed.tree_type as TreeType,
+    growth: dbSeed.growth,
+    stage: dbSeed.stage,
+    health: dbSeed.health,
+    dead: dbSeed.dead,
+    messages: [], // 留言单独加载
+    healthState: dbSeed.health_state as HealthState,
+    negativeThoughts: dbSeed.negative_thoughts,
+    lastStateChange: dbSeed.last_state_change,
+    history: dbSeed.history,
+    isMock: false,
+    stats: dbSeed.stats,
+    achievements: dbSeed.achievements,
+    lastUpdateTime: dbSeed.last_update_time,
+    lastWaterTime: dbSeed.last_water_time,
+    lastFertilizeTime: dbSeed.last_fertilize_time,
+    lastSunTime: dbSeed.last_sun_time,
+    lastPestTime: dbSeed.last_pest_time,
+    lastTrimTime: dbSeed.last_trim_time,
+    lastLoosenTime: dbSeed.last_loosen_time,
+  };
 };
 
-const generateMockSeeds = (): Seed[] => {
-  const count = Math.floor(Math.random() * 3) + 3;
-  const seeds: Seed[] = [];
-  for (let i = 0; i < count; i++) {
-    const content = MOCK_CONTENTS[Math.floor(Math.random() * MOCK_CONTENTS.length)];
-    const growth = Math.floor(Math.random() * 100);
-    const treeType = TREE_TYPES[Math.floor(Math.random() * TREE_TYPES.length)];
-    const healthState: HealthState = ['healthy', 'pests', 'thirsty', 'overcrowded'][Math.floor(Math.random() * 4)] as HealthState;
-    const messages: Message[] = [
-      { nick: '森林伙伴', content: '加油，一切都会好起来的', timestamp: Date.now() - 86400000 },
-      { nick: '阳光使者', content: '我也有同样的感受 🌞', timestamp: Date.now() - 43200000 },
-    ].slice(0, Math.floor(Math.random() * 2) + 1);
-    seeds.push({
-      id: `mock-${Date.now()}-${i}-${Math.random()}`,
-      content,
-      treeType,
-      growth,
-      stage: getStageFromGrowth(growth),
-      health: 80 + Math.floor(Math.random() * 20),
-      dead: false,
-      messages,
-      healthState,
-      negativeThoughts: healthState === 'pests' ? ['我做不到'] : [],
-      lastStateChange: Date.now(),
-      history: [],
-      isMock: true,
-      stats: { water: 0, fertilize: 0, sun: 0, pest: 0, trim: 0, loosen: 0 },
-      achievements: [],
-      lastUpdateTime: Date.now(),
-    });
-  }
-  return seeds;
-};
-
-const migrateSeed = (seed: any): Seed => {
-  if (!seed.history) seed.history = [];
-  if (Array.isArray(seed.messages) && seed.messages.length > 0 && typeof seed.messages[0] === 'string') {
-    seed.messages = seed.messages.map((msg: string) => ({
-      nick: '森林伙伴',
-      content: msg,
-      timestamp: Date.now(),
-    }));
-  }
-  if (!seed.negativeThoughts) seed.negativeThoughts = [];
-  if (!seed.lastStateChange) seed.lastStateChange = Date.now();
-  if (!seed.stats) seed.stats = { water: 0, fertilize: 0, sun: 0, pest: 0, trim: 0, loosen: 0 };
-  if (!seed.achievements) seed.achievements = [];
-  if (!seed.treeType) seed.treeType = 'oak';
-  if (seed.health === undefined) seed.health = 100;
-  if (seed.dead === undefined) seed.dead = false;
-  if (!seed.stage) seed.stage = getStageFromGrowth(seed.growth || 0);
-  if (!seed.lastUpdateTime) seed.lastUpdateTime = Date.now();
-  return seed as Seed;
-};
-
-const getRandomNegativeThoughts = (): string[] => {
-  const count = Math.floor(Math.random() * 3) + 1;
-  const shuffled = [...NEGATIVE_THOUGHTS].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count);
-};
-
-const getNextHealthState = (_current: HealthState, health: number): HealthState => {
-  const states: HealthState[] = ['healthy', 'pests', 'thirsty', 'overcrowded'];
-  if (Math.random() > (health / 100)) {
-    const negativeStates = states.filter(s => s !== 'healthy');
-    return negativeStates[Math.floor(Math.random() * negativeStates.length)];
-  }
-  return 'healthy';
-};
-
-const checkAchievements = (seed: Seed, action: keyof Stats, increment: number): Achievement[] => {
-  const newAchievements = [...seed.achievements];
-  const has = (id: string) => newAchievements.some(a => a.id === id);
-  const now = Date.now();
-
-  if (seed.stats[action] === 0 && !has(`first_${action}`)) {
-    const ach = ALL_ACHIEVEMENTS.find(a => a.id === `first_${action}`);
-    if (ach) newAchievements.push({ ...ach, unlockedAt: now });
-  }
-
-  const count = seed.stats[action] + increment;
-  if (action === 'water' && count >= 10 && !has('water_10')) {
-    const ach = ALL_ACHIEVEMENTS.find(a => a.id === 'water_10');
-    if (ach) newAchievements.push({ ...ach, unlockedAt: now });
-  }
-  if (action === 'fertilize' && count >= 10 && !has('fertilize_10')) {
-    const ach = ALL_ACHIEVEMENTS.find(a => a.id === 'fertilize_10');
-    if (ach) newAchievements.push({ ...ach, unlockedAt: now });
-  }
-  if (action === 'pest' && count >= 5 && !has('pest_5')) {
-    const ach = ALL_ACHIEVEMENTS.find(a => a.id === 'pest_5');
-    if (ach) newAchievements.push({ ...ach, unlockedAt: now });
-  }
-
-  return newAchievements;
-};
-
+// 操作基础效果（与原版一致）
 const actionBaseEffects: Record<SeedHistoryItem['action'], { growthBase: number; healthRecovery: number }> = {
   water: { growthBase: 5, healthRecovery: 3 },
   fertilize: { growthBase: 8, healthRecovery: 1 },
@@ -138,192 +40,264 @@ const actionBaseEffects: Record<SeedHistoryItem['action'], { growthBase: number;
   loosen: { growthBase: 4, healthRecovery: 3 },
 };
 
-export function useSeeds() {
-  const [seeds, setSeeds] = useState<Seed[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        return parsed.map(migrateSeed);
-      } catch {
-        return generateMockSeeds();
-      }
+// 计算阶段（与原版一致）
+const getStageFromGrowth = (growth: number): GrowthStage => {
+  if (growth < 20) return 0;
+  if (growth < 40) return 1;
+  if (growth < 60) return 2;
+  if (growth < 80) return 3;
+  return 4;
+};
+
+// 随机健康状态变化（基于健康值）
+const getNextHealthState = (current: HealthState, health: number): HealthState => {
+  const states: HealthState[] = ['healthy', 'pests', 'thirsty', 'overcrowded'];
+  if (Math.random() > (health / 100)) {
+    const negativeStates = states.filter(s => s !== 'healthy');
+    return negativeStates[Math.floor(Math.random() * negativeStates.length)];
+  }
+  return 'healthy';
+};
+
+export function useSeeds(userId: string | null) {
+  const [seeds, setSeeds] = useState<Seed[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // 加载所有种子并附带留言
+  const loadSeeds = async () => {
+    if (!userId) return;
+    setLoading(true);
+    const { data: seedsData, error } = await supabase
+      .from('seeds')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('加载种子失败:', error);
+      setLoading(false);
+      return;
     }
-    return generateMockSeeds();
-  });
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seeds));
-  }, [seeds]);
+    const mapped = seedsData.map(mapDbSeed);
+    // 为每个种子加载留言
+    for (const seed of mapped) {
+      const { data: msgs } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('seed_id', seed.id)
+        .order('timestamp', { ascending: false });
+      seed.messages = msgs || [];
+    }
+    setSeeds(mapped);
+    setLoading(false);
+  };
 
-  const addSeed = (content: string, treeType?: TreeType) => {
-    const type = treeType || TREE_TYPES[Math.floor(Math.random() * TREE_TYPES.length)];
+  // 添加种子
+  const addSeed = async (content: string, treeType?: TreeType) => {
+    if (!userId) return;
     const now = Date.now();
-    const newSeed: Seed = {
+    const newSeed = {
       id: now.toString(),
+      user_id: userId,
       content,
-      treeType: type,
+      tree_type: treeType || 'oak',
       growth: 0,
       stage: 0,
       health: 100,
       dead: false,
-      messages: [],
-      healthState: 'healthy',
-      negativeThoughts: [],
-      lastStateChange: now,
+      health_state: 'healthy',
+      negative_thoughts: [],
+      last_state_change: now,
       history: [],
-      isMock: false,
       stats: { water: 0, fertilize: 0, sun: 0, pest: 0, trim: 0, loosen: 0 },
       achievements: [],
-      lastUpdateTime: now,
+      last_update_time: now,
     };
-    setSeeds(prev => [newSeed, ...prev]);
-  };
-
-  const updateSeed = (id: string, updater: (seed: Seed) => Seed) => {
-    setSeeds(prev => prev.map(seed => (seed.id === id ? updater(seed) : seed)));
-  };
-
-  const addHistoryItem = (seed: Seed, action: SeedHistoryItem['action'], description: string, growthChange: number): Seed => {
-    const historyItem: SeedHistoryItem = {
-      id: `${Date.now()}-${Math.random()}`,
-      action,
-      description,
-      growthChange,
-      timestamp: Date.now(),
-    };
-    return {
-      ...seed,
-      history: [historyItem, ...seed.history],
-    };
-  };
-
-  const applyTimeDecay = (seed: Seed, now: number): Seed => {
-    if (seed.dead) return seed;
-    const elapsedHours = (now - (seed.lastUpdateTime || now)) / (1000 * 60 * 60);
-    if (elapsedHours <= 0) return seed;
-    const decay = Math.floor(elapsedHours / 24) * 5;
-    if (decay <= 0) return seed;
-    const newHealth = Math.max(0, seed.health - decay);
-    const dead = newHealth <= 0;
-    return {
-      ...seed,
-      health: newHealth,
-      dead,
-      lastUpdateTime: now,
-    };
-  };
-
-  const maybeRandomizeHealthState = (seed: Seed): Seed => {
-    if (seed.dead) return seed;
-    const now = Date.now();
-    const prob = Math.min(0.5, (100 - seed.health) / 200);
-    if (Math.random() < prob) {
-      const newHealthState = getNextHealthState(seed.healthState, seed.health);
-      const updated: Seed = { ...seed, healthState: newHealthState, lastStateChange: now };
-      if (newHealthState === 'pests') {
-        updated.negativeThoughts = getRandomNegativeThoughts();
-      } else {
-        updated.negativeThoughts = [];
-      }
-      return updated;
+    const { error } = await supabase.from('seeds').insert(newSeed);
+    if (error) {
+      console.error('添加种子失败:', error);
+    } else {
+      await loadSeeds();
     }
-    return seed;
   };
 
-  const performAction = (
+  // 通用更新种子方法
+  const updateSeed = async (id: string, updates: Partial<Seed>) => {
+    if (!userId) return;
+    const dbUpdates: any = {};
+    if (updates.growth !== undefined) dbUpdates.growth = updates.growth;
+    if (updates.stage !== undefined) dbUpdates.stage = updates.stage;
+    if (updates.health !== undefined) dbUpdates.health = updates.health;
+    if (updates.dead !== undefined) dbUpdates.dead = updates.dead;
+    if (updates.healthState !== undefined) dbUpdates.health_state = updates.healthState;
+    if (updates.negativeThoughts !== undefined) dbUpdates.negative_thoughts = updates.negativeThoughts;
+    if (updates.lastStateChange !== undefined) dbUpdates.last_state_change = updates.lastStateChange;
+    if (updates.history !== undefined) dbUpdates.history = updates.history;
+    if (updates.stats !== undefined) dbUpdates.stats = updates.stats;
+    if (updates.achievements !== undefined) dbUpdates.achievements = updates.achievements;
+    if (updates.lastUpdateTime !== undefined) dbUpdates.last_update_time = updates.lastUpdateTime;
+    if (updates.lastWaterTime !== undefined) dbUpdates.last_water_time = updates.lastWaterTime;
+    if (updates.lastFertilizeTime !== undefined) dbUpdates.last_fertilize_time = updates.lastFertilizeTime;
+    if (updates.lastSunTime !== undefined) dbUpdates.last_sun_time = updates.lastSunTime;
+    if (updates.lastPestTime !== undefined) dbUpdates.last_pest_time = updates.lastPestTime;
+    if (updates.lastTrimTime !== undefined) dbUpdates.last_trim_time = updates.lastTrimTime;
+    if (updates.lastLoosenTime !== undefined) dbUpdates.last_loosen_time = updates.lastLoosenTime;
+
+    const { error } = await supabase
+      .from('seeds')
+      .update(dbUpdates)
+      .eq('id', id);
+    if (error) {
+      console.error('更新种子失败:', error);
+    } else {
+      await loadSeeds();
+    }
+  };
+
+  // 执行照料动作（完整逻辑）
+  const performAction = async (
     id: string,
     _growthIncrement: number,
     action: SeedHistoryItem['action'],
     description: string,
     modifier?: (seed: Seed) => Seed
   ) => {
-    updateSeed(id, seed => {
-      if (seed.dead) return seed;
+    const seed = seeds.find(s => s.id === id);
+    if (!seed || seed.dead) return;
 
-      const now = Date.now();
-      let updated = applyTimeDecay(seed, now);
+    const now = Date.now();
 
-      const lastTimeField = `last${action.charAt(0).toUpperCase() + action.slice(1)}Time` as keyof Pick<Seed, 'lastWaterTime' | 'lastFertilizeTime' | 'lastSunTime' | 'lastPestTime' | 'lastTrimTime' | 'lastLoosenTime'>;
-      const lastTime = updated[lastTimeField];
-      const isOverCared = lastTime && (now - lastTime) < 30 * 60 * 1000;
+    // 时间衰减
+    const elapsedHours = (now - (seed.lastUpdateTime || now)) / (1000 * 60 * 60);
+    let healthAfterDecay = seed.health;
+    let deadAfterDecay = seed.dead;
+    if (elapsedHours > 0) {
+      const decay = Math.floor(elapsedHours / 24) * 5;
+      if (decay > 0) {
+        healthAfterDecay = Math.max(0, seed.health - decay);
+        deadAfterDecay = healthAfterDecay <= 0;
+      }
+    }
 
-      const base = actionBaseEffects[action];
-      let growthChange = base.growthBase;
-      let healthChange = base.healthRecovery;
+    let currentSeed = {
+      ...seed,
+      health: healthAfterDecay,
+      dead: deadAfterDecay,
+      lastUpdateTime: now,
+    };
 
-      if (isOverCared) {
-        growthChange = Math.floor(growthChange / 2);
-        healthChange = -10;
-        description = description.replace('你', '你过度照料，');
+    if (currentSeed.dead) return;
+
+    // 检查过度照料
+    const lastTimeField = `last${action.charAt(0).toUpperCase() + action.slice(1)}Time` as keyof Pick<Seed, 'lastWaterTime' | 'lastFertilizeTime' | 'lastSunTime' | 'lastPestTime' | 'lastTrimTime' | 'lastLoosenTime'>;
+    const lastTime = currentSeed[lastTimeField];
+    const isOverCared = lastTime && (now - (lastTime as number)) < 30 * 60 * 1000;
+
+    const base = actionBaseEffects[action];
+    let growthChange = base.growthBase;
+    let healthChange = base.healthRecovery;
+
+    if (isOverCared) {
+      growthChange = Math.floor(growthChange / 2);
+      healthChange = -10;
+      description = description.replace('你', '你过度照料，');
+    } else {
+      growthChange = Math.max(1, Math.floor(growthChange * (currentSeed.health / 100)));
+    }
+
+    // 应用 modifier（如驱虫移除负面想法）
+    if (modifier) {
+      currentSeed = modifier(currentSeed);
+    }
+
+    let newGrowth = Math.min(100, currentSeed.growth + growthChange);
+    let newHealth = currentSeed.health + healthChange;
+    if (newHealth > 100) newHealth = 100;
+    const dead = newHealth <= 0;
+
+    const newStage = getStageFromGrowth(newGrowth);
+    const newStats = {
+      ...currentSeed.stats,
+      [action]: currentSeed.stats[action] + 1,
+    };
+
+    // 成就系统（简单示例）
+    let newAchievements = [...currentSeed.achievements];
+    if (newGrowth === 100 && !newAchievements.some(a => a.id === 'growth_100')) {
+      newAchievements.push({ id: 'growth_100', name: '茁壮成长', description: '一棵树成长到100%', icon: '🌳', unlockedAt: now });
+    }
+
+    const updated: Partial<Seed> = {
+      growth: newGrowth,
+      stage: newStage,
+      health: newHealth,
+      dead,
+      stats: newStats,
+      achievements: newAchievements,
+      lastUpdateTime: now,
+      [lastTimeField]: now,
+    };
+
+    // 添加历史记录
+    const historyItem: SeedHistoryItem = {
+      id: `${now}-${Math.random()}`,
+      action,
+      description,
+      growthChange,
+      timestamp: now,
+    };
+    updated.history = [historyItem, ...currentSeed.history];
+
+    // 随机健康状态变化
+    const prob = Math.min(0.5, (100 - newHealth) / 200);
+    if (Math.random() < prob) {
+      const newHealthState = getNextHealthState(currentSeed.healthState, newHealth);
+      updated.healthState = newHealthState;
+      if (newHealthState === 'pests') {
+        updated.negativeThoughts = ['我做不到']; // 简单示例，可扩展
       } else {
-        growthChange = Math.max(1, Math.floor(growthChange * (updated.health / 100)));
+        updated.negativeThoughts = [];
       }
+      updated.lastStateChange = now;
+    }
 
-      if (modifier) {
-        updated = modifier(updated);
-      }
-
-      let newGrowth = Math.min(100, updated.growth + growthChange);
-      let newHealth = updated.health + healthChange;
-      if (newHealth > 100) newHealth = 100;
-      const dead = newHealth <= 0;
-
-      const newStage = getStageFromGrowth(newGrowth);
-
-      const newStats = {
-        ...updated.stats,
-        [action]: updated.stats[action] + 1,
-      };
-
-      let newAchievements = checkAchievements({ ...updated, stats: newStats }, action, 1);
-      if (newGrowth === 100 && !newAchievements.some(a => a.id === 'growth_100')) {
-        const ach = ALL_ACHIEVEMENTS.find(a => a.id === 'growth_100');
-        if (ach) newAchievements.push({ ...ach, unlockedAt: now });
-      }
-
-      updated = {
-        ...updated,
-        growth: newGrowth,
-        stage: newStage,
-        health: newHealth,
-        dead,
-        stats: newStats,
-        achievements: newAchievements,
-        [lastTimeField]: now,
-        lastUpdateTime: now,
-      };
-
-      updated = addHistoryItem(updated, action, description, growthChange);
-      updated = maybeRandomizeHealthState(updated);
-
-      return updated;
-    });
+    await updateSeed(id, updated);
   };
 
-  const addMessage = (id: string, nick: string, content: string) => {
+  // 添加留言
+  const addMessage = async (id: string, nick: string, content: string) => {
     const message: Message = {
       nick: nick.trim() || '森林伙伴',
       content: content.trim(),
       timestamp: Date.now(),
     };
-    updateSeed(id, seed => ({
-      ...seed,
-      messages: [message, ...seed.messages],
-    }));
+    const { error } = await supabase
+      .from('messages')
+      .insert({ seed_id: id, nick: message.nick, content: message.content, timestamp: message.timestamp });
+    if (error) {
+      console.error('添加留言失败:', error);
+    } else {
+      await loadSeeds();
+    }
   };
 
-  const removeNegativeThought = (id: string, thought: string) => {
-    updateSeed(id, seed => {
-      const filtered = seed.negativeThoughts.filter(t => t !== thought);
-      const updated = { ...seed, negativeThoughts: filtered };
-      if (filtered.length === 0) updated.healthState = 'healthy';
-      return updated;
+  // 驱虫
+  const removeNegativeThought = async (id: string, thought: string) => {
+    const seed = seeds.find(s => s.id === id);
+    if (!seed) return;
+    const filtered = seed.negativeThoughts.filter(t => t !== thought);
+    await updateSeed(id, {
+      negativeThoughts: filtered,
+      healthState: filtered.length === 0 ? 'healthy' : seed.healthState,
     });
   };
 
+  useEffect(() => {
+    loadSeeds();
+  }, [userId]);
+
   return {
     seeds,
+    loading,
     addSeed,
     performAction,
     addMessage,

@@ -1,19 +1,25 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from './lib/supabase';
 import { useSeeds } from './hooks/useSeeds';
 import SeedCard from './components/SeedCard';
 import NewSeedModal from './components/NewSeedModal';
 import UserSetupModal, { UserSetupData } from './components/UserSetupModal';
 import MoodUpdateModal from './components/MoodUpdateModal';
+import AuthModal from './components/AuthModal';
 
 type View = 'mine' | 'square';
 
 function App() {
-  const { seeds, addSeed, performAction, addMessage, removeNegativeThought } = useSeeds();
+  const [user, setUser] = useState<any>(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const { seeds, loading, addSeed, performAction, addMessage, removeNegativeThought } = useSeeds(user?.id);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [view, setView] = useState<View>('mine');
   const [bgGradient, setBgGradient] = useState('from-green-50 to-stone-100');
 
+  // 昼夜变化
   useEffect(() => {
     const updateGradient = () => {
       const hour = new Date().getHours();
@@ -28,6 +34,19 @@ function App() {
     updateGradient();
     const interval = setInterval(updateGradient, 60000);
     return () => clearInterval(interval);
+  }, []);
+
+  // 监听登录状态
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => {
+      listener?.subscription.unsubscribe();
+    };
   }, []);
 
   const [showSetup, setShowSetup] = useState(() => {
@@ -46,29 +65,23 @@ function App() {
   const handleWater = (id: string) => {
     performAction(id, 5, 'water', '你温柔地浇了水，小树喝饱了💧');
   };
-
   const handleFertilize = (id: string) => {
     performAction(id, 5, 'fertilize', '你撒下智慧的肥料，小树更有力量🌿');
   };
-
   const handleRemoveThought = (id: string, thought: string) => {
     removeNegativeThought(id, thought);
     performAction(id, 5, 'pest', `你驱散了害虫“${thought}”🐛`);
   };
-
   const handlePestlessAction = (id: string, thought: string) => {
     performAction(id, 2, 'pest', `你想象并驱散了负面想法“${thought}”`);
   };
-
   const handleTrim = (id: string, selected: string[]) => {
     const increment = selected.length * 3;
     performAction(id, increment, 'trim', `你修剪了${selected.length}个负担：${selected.join('、')}✂️`);
   };
-
   const handleLoosen = (id: string, _text: string) => {
     performAction(id, 5, 'loosen', '你松动了固化的想法，土壤变得透气🪴');
   };
-
   const handleAddMessage = (id: string, nick: string, content: string) => {
     addMessage(id, nick, content);
     performAction(id, 5, 'sun', `你收到一条鼓励：“${content}”☀️`);
@@ -76,8 +89,7 @@ function App() {
 
   const handleSetupComplete = (data: UserSetupData) => {
     console.log('用户设置完成:', data);
-    // 修复：将 treeType 作为 any 传递，避免类型检查（运行时正确）
-    addSeed(`我的第一棵树: ${data.treeType}`, data.treeType as any);
+    addSeed(`我的第一棵树: ${data.treeType}`, data.treeType);
     setUserSetup(data);
     localStorage.setItem('user-setup', JSON.stringify(data));
     localStorage.setItem('forest-setup-completed', 'true');
@@ -92,12 +104,26 @@ function App() {
     }
   };
 
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">加载中...</div>;
+  }
+
+  if (!user) {
+    return <AuthModal onLogin={() => setShowAuth(false)} />;
+  }
+
   return (
     <div className={`min-h-screen bg-gradient-to-b ${bgGradient} p-6 transition-colors duration-1000`}>
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-6">
           <h1 className="text-4xl md:text-5xl font-bold text-stone-800 mb-2">🌱 心理解压森林</h1>
           <p className="text-stone-600 text-lg">种下你的烦恼，用温暖呵护它发芽</p>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="mt-2 text-sm text-stone-500 hover:text-stone-700 underline"
+          >
+            退出登录
+          </button>
         </div>
 
         <div className="flex justify-center gap-4 mb-8">
@@ -188,6 +214,7 @@ function App() {
                   onLoosen={handleLoosen}
                   onRemoveThought={handleRemoveThought}
                   isSquare={view === 'square'}
+                  isOwner={seed.user_id === user.id}
                 />
               ))}
             </AnimatePresence>

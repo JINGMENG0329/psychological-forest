@@ -14,6 +14,7 @@ import {
   playLoosenSound,
 } from '../utils/sound';
 
+// 健康状态图标
 const healthIcon: Record<Seed['healthState'], string> = {
   healthy: '🌱',
   pests: '🐛',
@@ -21,6 +22,7 @@ const healthIcon: Record<Seed['healthState'], string> = {
   overcrowded: '🌿',
 };
 
+// 树种各阶段渲染函数
 const renderTree = (seed: Seed) => {
   if (seed.dead) return <span className="text-6xl">🥀</span>;
 
@@ -147,6 +149,7 @@ interface Props {
   onLoosen: (id: string, text: string) => void;
   onRemoveThought: (id: string, thought: string) => void;
   isSquare?: boolean;
+  isOwner?: boolean;
 }
 
 export default function SeedCard({
@@ -159,6 +162,7 @@ export default function SeedCard({
   onLoosen,
   onRemoveThought,
   isSquare = false,
+  isOwner = false,
 }: Props) {
   const [showMessageInput, setShowMessageInput] = useState(false);
   const [message, setMessage] = useState('');
@@ -325,6 +329,7 @@ export default function SeedCard({
 
         {/* 按钮区域 */}
         <div className="flex flex-wrap gap-2 justify-center mt-2">
+          {/* 晒太阳按钮始终显示 */}
           <button
             onClick={() => {
               if (!isDead) {
@@ -337,75 +342,83 @@ export default function SeedCard({
           >
             ☀️ 晒太阳
           </button>
-          <button
-            onClick={() => {
-              if (!isDead) {
-                playWaterSound();
-                onWater(seed.id);
-              }
-            }}
-            disabled={isDead}
-            className="flex-shrink-0 px-3 py-2 bg-blue-100 text-blue-800 rounded-xl hover:bg-blue-200 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            💧 浇水
-          </button>
-          <button
-            onClick={() => {
-              if (!isDead) {
-                playFertilizeSound();
-                onFertilize(seed.id);
-              }
-            }}
-            disabled={isDead}
-            className="flex-shrink-0 px-3 py-2 bg-yellow-100 text-yellow-800 rounded-xl hover:bg-yellow-200 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            🌿 施肥
-          </button>
-          <button
-            onClick={handlePestButton}
-            disabled={isDead}
-            className={`flex-shrink-0 px-3 py-2 rounded-xl transition text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-              seed.healthState === 'pests'
-                ? 'bg-red-200 text-red-900 ring-2 ring-red-400'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-            }`}
-          >
-            🐞 驱虫
-          </button>
-          <button
-            onClick={() => !isDead && setShowTrimModal(true)}
-            disabled={isDead}
-            className={`flex-shrink-0 px-3 py-2 rounded-xl transition text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-              seed.healthState === 'overcrowded'
-                ? 'bg-purple-200 text-purple-900 ring-2 ring-purple-400'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-            }`}
-          >
-            ✂️ 修剪
-          </button>
-          <button
-            onClick={() => !isDead && setShowLoosenModal(true)}
-            disabled={isDead}
-            className={`flex-shrink-0 px-3 py-2 rounded-xl transition text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-              seed.healthState === 'thirsty'
-                ? 'bg-cyan-200 text-cyan-900 ring-2 ring-cyan-400'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-            }`}
-          >
-            🪴 松土
-          </button>
-          <button
-            onClick={openHistory}
-            className="flex-shrink-0 px-3 py-2 bg-stone-200 text-stone-800 rounded-xl hover:bg-stone-300 transition text-sm"
-          >
-            📖 记录本
-          </button>
-          <button
-            onClick={openAchievements}
-            className="flex-shrink-0 px-3 py-2 bg-yellow-200 text-yellow-800 rounded-xl hover:bg-yellow-300 transition text-sm"
-          >
-            🏆 成就
-          </button>
+
+          {/* 以下照料按钮仅当是自己的种子时才显示 */}
+          {isOwner && (
+            <>
+              <button
+                onClick={() => {
+                  if (!isDead) {
+                    playWaterSound();
+                    onWater(seed.id);
+                  }
+                }}
+                disabled={isDead}
+                className="flex-shrink-0 px-3 py-2 bg-blue-100 text-blue-800 rounded-xl hover:bg-blue-200 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                💧 浇水
+              </button>
+              <button
+                onClick={() => {
+                  if (!isDead) {
+                    playFertilizeSound();
+                    onFertilize(seed.id);
+                  }
+                }}
+                disabled={isDead}
+                className="flex-shrink-0 px-3 py-2 bg-yellow-100 text-yellow-800 rounded-xl hover:bg-yellow-200 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                🌿 施肥
+              </button>
+              <button
+                onClick={handlePestButton}
+                disabled={isDead}
+                className={`flex-shrink-0 px-3 py-2 rounded-xl transition text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                  seed.healthState === 'pests'
+                    ? 'bg-red-200 text-red-900 ring-2 ring-red-400'
+                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
+              >
+                🐞 驱虫
+              </button>
+              <button
+                onClick={() => !isDead && setShowTrimModal(true)}
+                disabled={isDead}
+                className={`flex-shrink-0 px-3 py-2 rounded-xl transition text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                  seed.healthState === 'overcrowded'
+                    ? 'bg-purple-200 text-purple-900 ring-2 ring-purple-400'
+                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
+              >
+                ✂️ 修剪
+              </button>
+              <button
+                onClick={() => !isDead && setShowLoosenModal(true)}
+                disabled={isDead}
+                className={`flex-shrink-0 px-3 py-2 rounded-xl transition text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                  seed.healthState === 'thirsty'
+                    ? 'bg-cyan-200 text-cyan-900 ring-2 ring-cyan-400'
+                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
+              >
+                🪴 松土
+              </button>
+              <button
+                onClick={openHistory}
+                className="flex-shrink-0 px-3 py-2 bg-stone-200 text-stone-800 rounded-xl hover:bg-stone-300 transition text-sm"
+              >
+                📖 记录本
+              </button>
+              <button
+                onClick={openAchievements}
+                className="flex-shrink-0 px-3 py-2 bg-yellow-200 text-yellow-800 rounded-xl hover:bg-yellow-300 transition text-sm"
+              >
+                🏆 成就
+              </button>
+            </>
+          )}
+
+          {/* 留言按钮始终显示（仅在广场视图） */}
           {isSquare && (
             <button
               onClick={openMessageSend}
