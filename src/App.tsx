@@ -36,7 +36,7 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 监听登录状态
+  // 监听用户登录状态
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -49,19 +49,19 @@ function App() {
     };
   }, []);
 
+  // 用户设置（森林名称、心情、困扰等）
   const [showSetup, setShowSetup] = useState(() => {
     return !localStorage.getItem('forest-setup-completed');
   });
-
   const [userSetup, setUserSetup] = useState<UserSetupData | null>(() => {
     const stored = localStorage.getItem('user-setup');
     return stored ? JSON.parse(stored) : null;
   });
-
   const [showMoodUpdate, setShowMoodUpdate] = useState(false);
 
   const filteredSeeds = view === 'mine' ? seeds.filter(s => !s.isMock) : seeds;
 
+  // 照料操作处理函数
   const handleWater = (id: string) => {
     performAction(id, 5, 'water', '你温柔地浇了水，小树喝饱了💧');
   };
@@ -108,6 +108,7 @@ function App() {
     return <div className="min-h-screen flex items-center justify-center">加载中...</div>;
   }
 
+  // 未登录时显示登录弹窗
   if (!user) {
     return <AuthModal onLogin={() => setShowAuth(false)} />;
   }
@@ -214,7 +215,7 @@ function App() {
                   onLoosen={handleLoosen}
                   onRemoveThought={handleRemoveThought}
                   isSquare={view === 'square'}
-                  isOwner={seed.user_id === user.id}
+                  isOwner={seed.user_id === user?.id}
                 />
               ))}
             </AnimatePresence>
