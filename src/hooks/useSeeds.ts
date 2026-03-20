@@ -12,7 +12,7 @@ const mapDbSeed = (dbSeed: any): Seed => {
     stage: dbSeed.stage,
     health: dbSeed.health,
     dead: dbSeed.dead,
-    messages: [], // 留言单独加载
+    messages: [],
     healthState: dbSeed.health_state as HealthState,
     negativeThoughts: dbSeed.negative_thoughts,
     lastStateChange: dbSeed.last_state_change,
@@ -30,7 +30,6 @@ const mapDbSeed = (dbSeed: any): Seed => {
   };
 };
 
-// 操作基础效果
 const actionBaseEffects: Record<SeedHistoryItem['action'], { growthBase: number; healthRecovery: number }> = {
   water: { growthBase: 5, healthRecovery: 3 },
   fertilize: { growthBase: 8, healthRecovery: 1 },
@@ -63,7 +62,6 @@ export function useSeeds(userId: string | null) {
 
   const loadSeeds = async () => {
     if (!userId) {
-      // 未登录时直接结束加载，不请求数据
       setLoading(false);
       return;
     }
