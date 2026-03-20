@@ -65,7 +65,7 @@ function App() {
     performAction(id, increment, 'trim', `你修剪了${selected.length}个负担：${selected.join('、')}✂️`);
   };
 
-  const handleLoosen = (id: string, text: string) => {
+  const handleLoosen = (id: string, _text: string) => {
     performAction(id, 5, 'loosen', '你松动了固化的想法，土壤变得透气🪴');
   };
 
