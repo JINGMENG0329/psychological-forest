@@ -12,14 +12,12 @@ type View = 'mine' | 'square';
 
 function App() {
   const [user, setUser] = useState<any>(null);
-  const [showAuth, setShowAuth] = useState(false);
   const { seeds, loading, addSeed, performAction, addMessage, removeNegativeThought } = useSeeds(user?.id);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [view, setView] = useState<View>('mine');
   const [bgGradient, setBgGradient] = useState('from-green-50 to-stone-100');
 
-  // 昼夜变化
   useEffect(() => {
     const updateGradient = () => {
       const hour = new Date().getHours();
@@ -36,7 +34,6 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 监听用户登录状态
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -49,7 +46,6 @@ function App() {
     };
   }, []);
 
-  // 用户设置（森林名称、心情、困扰等）
   const [showSetup, setShowSetup] = useState(() => {
     return !localStorage.getItem('forest-setup-completed');
   });
@@ -61,7 +57,6 @@ function App() {
 
   const filteredSeeds = view === 'mine' ? seeds.filter(s => !s.isMock) : seeds;
 
-  // 照料操作处理函数
   const handleWater = (id: string) => {
     performAction(id, 5, 'water', '你温柔地浇了水，小树喝饱了💧');
   };
@@ -89,7 +84,7 @@ function App() {
 
   const handleSetupComplete = (data: UserSetupData) => {
     console.log('用户设置完成:', data);
-    addSeed(`我的第一棵树: ${data.treeType}`, data.treeType);
+    addSeed(`我的第一棵树: ${data.treeType}`, data.treeType as any);
     setUserSetup(data);
     localStorage.setItem('user-setup', JSON.stringify(data));
     localStorage.setItem('forest-setup-completed', 'true');
@@ -108,9 +103,8 @@ function App() {
     return <div className="min-h-screen flex items-center justify-center">加载中...</div>;
   }
 
-  // 未登录时显示登录弹窗
   if (!user) {
-    return <AuthModal onLogin={() => setShowAuth(false)} />;
+    return <AuthModal onLogin={() => {}} />;
   }
 
   return (

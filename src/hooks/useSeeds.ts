@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Seed, SeedHistoryItem, Message, TreeType, HealthState, GrowthStage } from '../types';
 
-// 辅助函数：从数据库种子转换为前端 Seed 类型
 const mapDbSeed = (dbSeed: any): Seed => {
   return {
     id: dbSeed.id,
+    user_id: dbSeed.user_id,
     content: dbSeed.content,
     treeType: dbSeed.tree_type as TreeType,
     growth: dbSeed.growth,
@@ -47,7 +47,7 @@ const getStageFromGrowth = (growth: number): GrowthStage => {
   return 4;
 };
 
-const getNextHealthState = (current: HealthState, health: number): HealthState => {
+const getNextHealthState = (_current: HealthState, health: number): HealthState => {
   const states: HealthState[] = ['healthy', 'pests', 'thirsty', 'overcrowded'];
   if (Math.random() > (health / 100)) {
     const negativeStates = states.filter(s => s !== 'healthy');
@@ -161,10 +161,9 @@ export function useSeeds(userId: string | null) {
 
     const now = Date.now();
 
-    // 时间衰减
     const elapsedHours = (now - (seed.lastUpdateTime || now)) / (1000 * 60 * 60);
     let healthAfterDecay = seed.health;
-    let deadAfterDecay = seed.dead;
+    let deadAfterDecay: boolean = seed.dead;
     if (elapsedHours > 0) {
       const decay = Math.floor(elapsedHours / 24) * 5;
       if (decay > 0) {
@@ -199,7 +198,8 @@ export function useSeeds(userId: string | null) {
     }
 
     if (modifier) {
-      currentSeed = modifier(currentSeed);
+      const modified = modifier(currentSeed);
+      currentSeed = { ...modified };
     }
 
     let newGrowth = Math.min(100, currentSeed.growth + growthChange);

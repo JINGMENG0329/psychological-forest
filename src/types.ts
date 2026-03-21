@@ -1,6 +1,6 @@
 export type HealthState = 'healthy' | 'pests' | 'thirsty' | 'overcrowded';
 export type TreeType = 'oak' | 'cherry' | 'maple' | 'pine' | 'willow' | 'blossom';
-export type GrowthStage = 0 | 1 | 2 | 3 | 4; // 0:种子,1:发芽,2:小苗,3:大树,4:花树/参天大树
+export type GrowthStage = 0 | 1 | 2 | 3 | 4;
 
 export interface SeedHistoryItem {
   id: string;
@@ -48,6 +48,7 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
 
 export interface Seed {
   id: string;
+  user_id?: string;                 // 新增
   content: string;
   treeType: TreeType;
   growth: number;
